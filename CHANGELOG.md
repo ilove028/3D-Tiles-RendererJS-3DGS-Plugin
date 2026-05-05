@@ -7,6 +7,21 @@ Versioning.
 
 ## [Unreleased]
 
+## [0.1.6] - 2026-05-06
+
+### Fixed
+
+- Preserved WebXR `ArrayCamera.matrixWorld` during camera-relative Spark update
+  checks by reading the camera pose directly from `matrixWorld` instead of
+  calling Three.js world-pose helpers that recompute the matrix.
+
+### Changed
+
+- Documented the WebXR camera/session switching pattern with a VRButton-based
+  example aligned with the upstream 3D Tiles Renderer VR example.
+- Clarified that AR needs its own placement, hit-test, reference-space, depth,
+  and occlusion handling in addition to the 3D Tiles XR camera pattern.
+
 ## [0.1.5] - 2026-05-03
 
 ### Fixed

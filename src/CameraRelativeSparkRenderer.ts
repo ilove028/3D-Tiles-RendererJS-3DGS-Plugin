@@ -30,6 +30,14 @@ const _cameraWorldDirection = new Vector3();
 const _cameraPositionEpsilonSq = 1e-6;
 const _cameraDirectionDotThreshold = 1 - 1e-3;
 
+function isXrPresenting(renderer: WebGLRenderer) {
+  return renderer.xr.isPresenting;
+}
+
+function getUpdateSourceCamera(renderer: WebGLRenderer, camera: Camera) {
+  return isXrPresenting(renderer) ? renderer.xr.getCamera() : camera;
+}
+
 type RebasedCameraRelativeRoot = {
   target: Object3D;
   originalMatrix: Matrix4;
@@ -252,6 +260,7 @@ export class CameraRelativeSparkRenderer extends SparkRenderer {
   #hasLastCameraPose = false;
   #lastRootStates = new Map<string, CameraRelativeRootSnapshot>();
   #currentRootStates = new Map<string, CameraRelativeRootSnapshot>();
+  #lastXrUpdateFrame = -1;
 
   #rebasedRootsPool: RebasedCameraRelativeRoot[] = [];
   #rebasedRootsCount = 0;
@@ -277,21 +286,33 @@ export class CameraRelativeSparkRenderer extends SparkRenderer {
     scene: Scene,
     camera: Camera,
   ) {
-    camera.updateMatrixWorld(true);
+    const xrPresenting = isXrPresenting(renderer);
+    const updateSourceCamera = getUpdateSourceCamera(renderer, camera);
+    if (!xrPresenting) {
+      camera.updateMatrixWorld(true);
+    }
 
-    const rebasedCount = this.#rebaseCameraRelativeRoots(scene, camera);
+    const rebasedCount = this.#rebaseCameraRelativeRoots(
+      scene,
+      updateSourceCamera,
+    );
     const hasRebased = rebasedCount > 0;
+    const renderFrame = renderer.info.render.frame;
+    const canUpdateThisFrame =
+      !xrPresenting || this.#lastXrUpdateFrame !== renderFrame;
 
     try {
       if (
         (hasRebased || this.#hadRebasedLastFrame) &&
-        this.#shouldUpdate(camera)
+        canUpdateThisFrame &&
+        this.#shouldUpdate(updateSourceCamera)
       ) {
-        const updateCamera = this.#getUpdateCamera(camera);
+        this.#lastXrUpdateFrame = renderFrame;
+        const updateCamera = this.#getUpdateCamera(updateSourceCamera);
         const prevDisplay = this.display;
         const prevCurrent = this.current;
 
-        const cameraWorldSnapshot = camera.matrixWorld.clone();
+        const cameraWorldSnapshot = updateSourceCamera.matrixWorld.clone();
 
         void this.update({
           scene,
@@ -331,8 +352,11 @@ export class CameraRelativeSparkRenderer extends SparkRenderer {
   }
 
   #shouldUpdate(camera: Camera) {
-    camera.getWorldPosition(_cameraWorldPosition);
-    camera.getWorldDirection(_cameraWorldDirection);
+    _cameraWorldPosition.setFromMatrixPosition(camera.matrixWorld);
+    _cameraWorldDirection
+      .set(0, 0, -1)
+      .transformDirection(camera.matrixWorld)
+      .normalize();
 
     const poseChanged =
       !this.#hasLastCameraPose ||

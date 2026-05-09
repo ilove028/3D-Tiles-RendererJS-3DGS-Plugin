@@ -7,6 +7,18 @@ Versioning.
 
 ## [Unreleased]
 
+## [0.1.7] - 2026-05-10
+
+### Changed
+
+- Camera-relative Spark updates now reuse Spark's internal auto-update skip
+  logic while still updating with the identity-rebased camera used by the
+  plugin.
+- Simplified camera-relative root traversal to carry ancestor state during the
+  visible scene walk, avoiding repeated parent-chain scans and explicit
+  splat/edit state snapshots in the render path.
+- Constrained the Spark peer and development dependency range to `~2.0.0`.
+
 ## [0.1.6] - 2026-05-06
 
 ### Fixed

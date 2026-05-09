@@ -1,14 +1,12 @@
 import {
   SparkRenderer,
   SplatEdit,
-  SplatEditSdf,
   SplatMesh,
 } from '@sparkjsdev/spark';
 import {
   Camera,
   Matrix4,
   Object3D,
-  Vector3,
   type Scene,
   type WebGLRenderer,
 } from 'three';
@@ -25,57 +23,31 @@ const _rebasedLocalMatrix = new Matrix4();
 const _displayFrameInverseWorldMatrix = new Matrix4();
 const _relativeRenderCameraMatrix = new Matrix4();
 
-const _cameraWorldPosition = new Vector3();
-const _cameraWorldDirection = new Vector3();
-const _cameraPositionEpsilonSq = 1e-6;
-const _cameraDirectionDotThreshold = 1 - 1e-3;
-
 function isXrPresenting(renderer: WebGLRenderer) {
   return renderer.xr.isPresenting;
 }
 
-function getUpdateSourceCamera(renderer: WebGLRenderer, camera: Camera) {
-  return isXrPresenting(renderer) ? renderer.xr.getCamera() : camera;
+function getUpdateSourceCamera(
+  renderer: WebGLRenderer,
+  camera: Camera,
+  xrPresenting = isXrPresenting(renderer),
+) {
+  return xrPresenting ? renderer.xr.getCamera() : camera;
 }
 
 type RebasedCameraRelativeRoot = {
-  target: Object3D;
+  target: Object3D | null;
   originalMatrix: Matrix4;
   originalMatrixAutoUpdate: boolean;
 };
 
-type GaussianSplatRootSnapshot = {
-  kind: 'splat';
-  opacity: number;
-  matrixWorld: Matrix4;
+type SparkRendererUpdateInternals = {
+  updateInternal(options: {
+    scene: Scene;
+    camera: Camera;
+    autoUpdate: boolean;
+  }): Promise<void>;
 };
-
-type SplatEditSdfSnapshot = {
-  uuid: string;
-  matrixWorld: Matrix4;
-  type: SplatEditSdf['type'];
-  invert: boolean;
-  opacity: number;
-  color: SplatEditSdf['color'];
-  radius: number;
-  displace: SplatEditSdf['displace'];
-  scale: SplatEditSdf['scale'];
-};
-
-type SplatEditRootSnapshot = {
-  kind: 'edit';
-  matrixWorld: Matrix4;
-  ordering: number;
-  rgbaBlendMode: SplatEdit['rgbaBlendMode'];
-  sdfSmooth: number;
-  softEdge: number;
-  invert: boolean;
-  sdfs: SplatEditSdfSnapshot[];
-};
-
-type CameraRelativeRootSnapshot =
-  | GaussianSplatRootSnapshot
-  | SplatEditRootSnapshot;
 
 function ensureCameraClone(cached: Camera | null, source: Camera): Camera {
   if (!cached || cached.constructor !== source.constructor) {
@@ -85,182 +57,23 @@ function ensureCameraClone(cached: Camera | null, source: Camera): Camera {
   return cached;
 }
 
-function hasGaussianSplatAncestor(node: Object3D) {
-  let ancestor = node.parent;
-  while (ancestor) {
-    if (ancestor instanceof SplatMesh || isGaussianSplat(ancestor)) {
-      return true;
-    }
-    ancestor = ancestor.parent;
-  }
-
-  return false;
+function isGaussianSplatNode(node: Object3D): node is SplatMesh {
+  return node instanceof SplatMesh || isGaussianSplat(node);
 }
 
-function isGlobalSplatEdit(node: Object3D): node is SplatEdit {
-  return node instanceof SplatEdit && !hasGaussianSplatAncestor(node);
-}
-
-function isCameraRelativeNode(node: Object3D): node is SplatMesh | SplatEdit {
-  return isGaussianSplat(node) || isGlobalSplatEdit(node);
-}
-
-function hasCameraRelativeRootAncestor(node: Object3D) {
-  let ancestor = node.parent;
-  while (ancestor) {
-    if (isCameraRelativeNode(ancestor)) {
-      return true;
-    }
-    ancestor = ancestor.parent;
-  }
-
-  return false;
-}
-
-function cloneSplatRootSnapshot(
-  node: SplatMesh,
-): GaussianSplatRootSnapshot {
-  return {
-    kind: 'splat',
-    opacity: node.opacity,
-    matrixWorld: node.matrixWorld.clone(),
-  };
-}
-
-function cloneSplatEditSdfSnapshot(
-  sdf: SplatEditSdf,
-): SplatEditSdfSnapshot {
-  return {
-    uuid: sdf.uuid,
-    matrixWorld: sdf.matrixWorld.clone(),
-    type: sdf.type,
-    invert: sdf.invert,
-    opacity: sdf.opacity,
-    color: sdf.color.clone(),
-    radius: sdf.radius,
-    displace: sdf.displace.clone(),
-    scale: sdf.scale.clone(),
-  };
-}
-
-function cloneSplatEditRootSnapshot(
-  edit: SplatEdit,
-): SplatEditRootSnapshot {
-  edit.updateMatrixWorld(true);
-
-  const sdfs: SplatEditSdfSnapshot[] = [];
-  const sourceSdfs = edit.sdfs;
-
-  if (sourceSdfs != null) {
-    for (const sdf of sourceSdfs) {
-      sdf.updateMatrixWorld(true);
-      sdfs.push(cloneSplatEditSdfSnapshot(sdf));
-    }
-  } else {
-    edit.traverseVisible((child) => {
-      if (child instanceof SplatEditSdf) {
-        child.updateMatrixWorld(true);
-        sdfs.push(cloneSplatEditSdfSnapshot(child));
-      }
-    });
-  }
-
-  return {
-    kind: 'edit',
-    matrixWorld: edit.matrixWorld.clone(),
-    ordering: edit.ordering,
-    rgbaBlendMode: edit.rgbaBlendMode,
-    sdfSmooth: edit.sdfSmooth,
-    softEdge: edit.softEdge,
-    invert: edit.invert,
-    sdfs,
-  };
-}
-
-function cloneCameraRelativeRootSnapshot(
-  node: SplatMesh | SplatEdit,
-): CameraRelativeRootSnapshot {
-  return node instanceof SplatEdit
-    ? cloneSplatEditRootSnapshot(node)
-    : cloneSplatRootSnapshot(node);
-}
-
-function areSplatRootStatesEqual(
-  a: GaussianSplatRootSnapshot,
-  b: GaussianSplatRootSnapshot,
-) {
-  return a.opacity === b.opacity && a.matrixWorld.equals(b.matrixWorld);
-}
-
-function areSplatEditSdfStatesEqual(
-  a: SplatEditSdfSnapshot,
-  b: SplatEditSdfSnapshot,
-) {
-  return (
-    a.uuid === b.uuid &&
-    a.type === b.type &&
-    a.invert === b.invert &&
-    a.opacity === b.opacity &&
-    a.radius === b.radius &&
-    a.matrixWorld.equals(b.matrixWorld) &&
-    a.color.equals(b.color) &&
-    a.displace.equals(b.displace) &&
-    a.scale.equals(b.scale)
-  );
-}
-
-function areSplatEditRootStatesEqual(
-  a: SplatEditRootSnapshot,
-  b: SplatEditRootSnapshot,
-) {
-  if (
-    !a.matrixWorld.equals(b.matrixWorld) ||
-    a.ordering !== b.ordering ||
-    a.rgbaBlendMode !== b.rgbaBlendMode ||
-    a.sdfSmooth !== b.sdfSmooth ||
-    a.softEdge !== b.softEdge ||
-    a.invert !== b.invert ||
-    a.sdfs.length !== b.sdfs.length
-  ) {
-    return false;
-  }
-
-  for (let i = 0; i < a.sdfs.length; i++) {
-    if (!areSplatEditSdfStatesEqual(a.sdfs[i], b.sdfs[i])) {
-      return false;
-    }
-  }
-
-  return true;
-}
-
-function areCameraRelativeRootStatesEqual(
-  a: CameraRelativeRootSnapshot | undefined,
-  b: CameraRelativeRootSnapshot | undefined,
-) {
-  if (a === b) {
-    return true;
-  }
-  if (!a || !b || a.kind !== b.kind) {
-    return false;
-  }
-  if (a.kind === 'splat') {
-    return b.kind === 'splat' && areSplatRootStatesEqual(a, b);
-  }
-
-  return b.kind === 'edit' && areSplatEditRootStatesEqual(a, b);
+function isCameraRelativeEdit(
+  node: Object3D,
+  hasGaussianSplatAncestor: boolean,
+): node is SplatEdit {
+  return node instanceof SplatEdit && !hasGaussianSplatAncestor;
 }
 
 export class CameraRelativeSparkRenderer extends SparkRenderer {
   #updateCamera: Camera | null = null;
   #renderCamera: Camera | null = null;
+  #cameraWorldSnapshot = new Matrix4();
 
-  #lastCameraPosition = new Vector3();
-  #lastCameraDirection = new Vector3();
-  #hasLastCameraPose = false;
-  #lastRootStates = new Map<string, CameraRelativeRootSnapshot>();
-  #currentRootStates = new Map<string, CameraRelativeRootSnapshot>();
-  #lastXrUpdateFrame = -1;
+  #lastXrHandledFrame = -1;
 
   #rebasedRootsPool: RebasedCameraRelativeRoot[] = [];
   #rebasedRootsCount = 0;
@@ -287,7 +100,11 @@ export class CameraRelativeSparkRenderer extends SparkRenderer {
     camera: Camera,
   ) {
     const xrPresenting = isXrPresenting(renderer);
-    const updateSourceCamera = getUpdateSourceCamera(renderer, camera);
+    const updateSourceCamera = getUpdateSourceCamera(
+      renderer,
+      camera,
+      xrPresenting,
+    );
     if (!xrPresenting) {
       camera.updateMatrixWorld(true);
     }
@@ -298,29 +115,35 @@ export class CameraRelativeSparkRenderer extends SparkRenderer {
     );
     const hasRebased = rebasedCount > 0;
     const renderFrame = renderer.info.render.frame;
-    const canUpdateThisFrame =
-      !xrPresenting || this.#lastXrUpdateFrame !== renderFrame;
+    const shouldHandleFrameState =
+      !xrPresenting || this.#lastXrHandledFrame !== renderFrame;
 
     try {
+      if (shouldHandleFrameState) {
+        this.#lastXrHandledFrame = renderFrame;
+      }
+
       if (
         (hasRebased || this.#hadRebasedLastFrame) &&
-        canUpdateThisFrame &&
-        this.#shouldUpdate(updateSourceCamera)
+        shouldHandleFrameState
       ) {
-        this.#lastXrUpdateFrame = renderFrame;
         const updateCamera = this.#getUpdateCamera(updateSourceCamera);
         const prevDisplay = this.display;
         const prevCurrent = this.current;
 
-        const cameraWorldSnapshot = updateSourceCamera.matrixWorld.clone();
+        const cameraWorldSnapshot = this.#cameraWorldSnapshot.copy(
+          updateSourceCamera.matrixWorld,
+        );
 
-        void this.update({
+        void this.#updateSparkIfNeeded({
           scene,
           camera: updateCamera,
+        }).catch((error: unknown) => {
+          console.error(
+            'CameraRelativeSparkRenderer: Spark update failed',
+            error,
+          );
         });
-
-        const updateAccepted =
-          this.current !== prevCurrent || this.display !== prevDisplay;
 
         // Spark receives an identity-rebased camera, so it writes identity
         // into accumulator.viewToWorld. Overwrite it back to the real world
@@ -332,15 +155,11 @@ export class CameraRelativeSparkRenderer extends SparkRenderer {
         if (this.display !== prevDisplay) {
           this.display.viewToWorld.copy(cameraWorldSnapshot);
         }
-
-        if (updateAccepted) {
-          this.#lastCameraPosition.copy(_cameraWorldPosition);
-          this.#lastCameraDirection.copy(_cameraWorldDirection);
-          this.#hasLastCameraPose = true;
-          this.#lastRootStates = new Map(this.#currentRootStates);
-        }
       }
-      this.#hadRebasedLastFrame = hasRebased;
+
+      if (shouldHandleFrameState) {
+        this.#hadRebasedLastFrame = hasRebased;
+      }
 
       // Build a relative camera from the display's world frame
       // instead of always passing the identity-rebased camera.
@@ -351,35 +170,19 @@ export class CameraRelativeSparkRenderer extends SparkRenderer {
     }
   }
 
-  #shouldUpdate(camera: Camera) {
-    _cameraWorldPosition.setFromMatrixPosition(camera.matrixWorld);
-    _cameraWorldDirection
-      .set(0, 0, -1)
-      .transformDirection(camera.matrixWorld)
-      .normalize();
-
-    const poseChanged =
-      !this.#hasLastCameraPose ||
-      _cameraWorldPosition.distanceToSquared(this.#lastCameraPosition) >
-        _cameraPositionEpsilonSq ||
-      _cameraWorldDirection.dot(this.#lastCameraDirection) <
-        _cameraDirectionDotThreshold;
-
-    const current = this.#currentRootStates;
-    const last = this.#lastRootStates;
-
-    let rootsChanged = current.size !== last.size;
-    if (!rootsChanged) {
-      for (const [uuid, state] of current) {
-        // Covers both "uuid missing" (get -> undefined) and state mismatch.
-        if (!areCameraRelativeRootStatesEqual(state, last.get(uuid))) {
-          rootsChanged = true;
-          break;
-        }
-      }
-    }
-
-    return poseChanged || rootsChanged;
+  #updateSparkIfNeeded({
+    scene,
+    camera,
+  }: {
+    scene: Scene;
+    camera: Camera;
+  }) {
+    // Reuse Spark's auto-update skip logic while keeping our identity camera.
+    return (this as unknown as SparkRendererUpdateInternals).updateInternal({
+      scene,
+      camera,
+      autoUpdate: true,
+    });
   }
 
   /**
@@ -433,72 +236,98 @@ export class CameraRelativeSparkRenderer extends SparkRenderer {
 
   #rebaseCameraRelativeRoots(scene: Scene, camera: Camera): number {
     this.#rebasedRootsCount = 0;
-    this.#currentRootStates.clear();
     _cameraInverseWorldMatrix.copy(camera.matrixWorld).invert();
 
-    scene.traverseVisible((node) => {
-      if (!isCameraRelativeNode(node)) {
-        return;
-      }
-
-      this.#currentRootStates.set(
-        node.uuid,
-        cloneCameraRelativeRootSnapshot(node),
-      );
-
-      // Rebase each root once. SDF children inherit their SplatEdit rebase
-      // through normal Object3D transforms.
-      if (hasCameraRelativeRootAncestor(node)) {
-        return;
-      }
-
-      const idx = this.#rebasedRootsCount++;
-      const pool = this.#rebasedRootsPool;
-
-      if (idx >= pool.length) {
-        pool.push({
-          target: node,
-          originalMatrix: node.matrix.clone(),
-          originalMatrixAutoUpdate: node.matrixAutoUpdate,
-        });
-      } else {
-        const entry = pool[idx];
-        entry.target = node;
-        entry.originalMatrix.copy(node.matrix);
-        entry.originalMatrixAutoUpdate = node.matrixAutoUpdate;
-      }
-
-      const parent = node.parent;
-      if (!parent || parent === scene) {
-        _rebasedLocalMatrix
-          .copy(_cameraInverseWorldMatrix)
-          .multiply(node.matrixWorld);
-      } else {
-        _rebasedLocalMatrix
-          .copy(_parentInverseWorldMatrix.copy(parent.matrixWorld).invert())
-          .multiply(_cameraInverseWorldMatrix)
-          .multiply(node.matrixWorld);
-      }
-
-      node.matrixAutoUpdate = false;
-      node.matrix.copy(_rebasedLocalMatrix);
-      node.matrixWorldNeedsUpdate = true;
-      node.updateMatrixWorld(true);
-    });
+    this.#visitVisibleCameraRelativeRoots(scene, scene, false, false);
 
     return this.#rebasedRootsCount;
+  }
+
+  #visitVisibleCameraRelativeRoots(
+    node: Object3D,
+    scene: Scene,
+    hasGaussianSplatAncestor: boolean,
+    hasCameraRelativeAncestor: boolean,
+  ) {
+    if (!node.visible) {
+      return;
+    }
+
+    const isSplatNode = isGaussianSplatNode(node);
+    const isCameraRelativeNode =
+      isSplatNode || isCameraRelativeEdit(node, hasGaussianSplatAncestor);
+
+    // Carry ancestor state through traversal to avoid repeatedly walking
+    // parent chains for every splat/edit node in the hot render path.
+    if (isCameraRelativeNode && !hasCameraRelativeAncestor) {
+      this.#rebaseCameraRelativeRoot(node);
+    }
+
+    const nextHasGaussianSplatAncestor =
+      hasGaussianSplatAncestor || isSplatNode;
+    const nextHasCameraRelativeAncestor =
+      hasCameraRelativeAncestor || isCameraRelativeNode;
+    const { children } = node;
+
+    for (let i = 0, l = children.length; i < l; i++) {
+      this.#visitVisibleCameraRelativeRoots(
+        children[i],
+        scene,
+        nextHasGaussianSplatAncestor,
+        nextHasCameraRelativeAncestor,
+      );
+    }
+  }
+
+  #rebaseCameraRelativeRoot(node: Object3D) {
+    const idx = this.#rebasedRootsCount++;
+    const pool = this.#rebasedRootsPool;
+
+    if (idx >= pool.length) {
+      pool.push({
+        target: node,
+        originalMatrix: node.matrix.clone(),
+        originalMatrixAutoUpdate: node.matrixAutoUpdate,
+      });
+    } else {
+      const entry = pool[idx];
+      entry.target = node;
+      entry.originalMatrix.copy(node.matrix);
+      entry.originalMatrixAutoUpdate = node.matrixAutoUpdate;
+    }
+
+    const parent = node.parent;
+    if (!parent) {
+      _rebasedLocalMatrix
+        .copy(_cameraInverseWorldMatrix)
+        .multiply(node.matrixWorld);
+    } else {
+      _rebasedLocalMatrix
+        .copy(_parentInverseWorldMatrix.copy(parent.matrixWorld).invert())
+        .multiply(_cameraInverseWorldMatrix)
+        .multiply(node.matrixWorld);
+    }
+
+    node.matrixAutoUpdate = false;
+    node.matrix.copy(_rebasedLocalMatrix);
+    node.matrixWorldNeedsUpdate = true;
+    node.updateMatrixWorld(true);
   }
 
   #restoreCameraRelativeRoots() {
     const pool = this.#rebasedRootsPool;
     for (let i = this.#rebasedRootsCount - 1; i >= 0; i--) {
       const { target, originalMatrix, originalMatrixAutoUpdate } = pool[i];
+      if (!target) continue;
       target.matrix.copy(originalMatrix);
       target.matrixAutoUpdate = originalMatrixAutoUpdate;
       target.matrixWorldNeedsUpdate = true;
     }
     for (let i = 0; i < this.#rebasedRootsCount; i++) {
-      pool[i].target.updateMatrixWorld(true);
+      pool[i].target?.updateMatrixWorld(true);
+    }
+    for (let i = this.#rebasedRootsCount; i < pool.length; i++) {
+      pool[i].target = null;
     }
   }
 }

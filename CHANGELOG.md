@@ -7,9 +7,16 @@ Versioning.
 
 ## [Unreleased]
 
+## [0.1.8] - 2026-05-21
+
 ### Changed
 
 - Updated the Spark peer and development dependency range to `^2.1.0`.
+- Updated the 3D Tiles Renderer peer and development dependency range to
+  `^0.4.25`.
+- Updated the documentation and example imagery globe setup to use
+  `GeneratedSurfacePlugin` with `XYZTilesOverlay` instead of deprecated
+  image-format plugin APIs.
 
 ## [0.1.7] - 2026-05-10
 

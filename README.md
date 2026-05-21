@@ -40,13 +40,11 @@ compatibility.
 
 ## Requirements
 
-As of April 17, 2026, Spark `2.0.0` declares a peer dependency on
-`three@^0.180.0`, so this package currently targets the same `three` major
-range.
+The package peer dependency ranges are:
 
 - `three@^0.180.0`
-- `3d-tiles-renderer@^0.4.24`
-- `@sparkjsdev/spark@^2.0.0`
+- `3d-tiles-renderer@^0.4.25`
+- `@sparkjsdev/spark@^2.1.0`
 
 ## Installation
 
@@ -227,13 +225,18 @@ For example, the demo forces each imagery tile back into the opaque pass when
 it loads:
 
 ```ts
+const imageryOverlay = new XYZTilesOverlay({
+  levels: 18,
+  url: '...',
+});
+
 const imageryTiles = new TilesRenderer();
 imageryTiles.registerPlugin(
-  new XYZTilesPlugin({
+  new GeneratedSurfacePlugin({
+    overlay: imageryOverlay,
     shape: 'ellipsoid',
     center: true,
-    levels: 18,
-    url: '...',
+    applyOverlayTexture: true,
   }),
 );
 
@@ -265,12 +268,17 @@ const imageryTiles = new TilesRenderer(
 );
 imageryTiles.setCamera(camera);
 imageryTiles.setResolutionFromRenderer(camera, renderer);
+
+const imageryOverlay = new XYZTilesOverlay({
+  levels: 18,
+  url: '...',
+});
 imageryTiles.registerPlugin(
-  new XYZTilesPlugin({
+  new GeneratedSurfacePlugin({
+    overlay: imageryOverlay,
     shape: 'ellipsoid',
     center: true,
-    levels: 18,
-    url: '...',
+    applyOverlayTexture: true,
   }),
 );
 globeScene.add(imageryTiles.group);
@@ -371,8 +379,8 @@ Splatting files with
 [`3DGS-PLY-3DTiles-Converter`](https://github.com/WilliamLiu-1997/3DGS-PLY-3DTiles-Converter).
 
 The page composes the splat tileset on top of an ArcGIS World Imagery globe
-served through `XYZTilesPlugin` so the Gaussian content sits in a real ECEF
-frame. A custom `CameraController` ([examples/shared/cameraController.js](examples/shared/cameraController.js))
+served through `GeneratedSurfacePlugin` and `XYZTilesOverlay` so the Gaussian
+content sits in a real ECEF frame. A custom `CameraController` ([examples/shared/cameraController.js](examples/shared/cameraController.js))
 drives orbit / pan / zoom using raycasts against the scene and the WGS84
 ellipsoid, with inertial damping.
 

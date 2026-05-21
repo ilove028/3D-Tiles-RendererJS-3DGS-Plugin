@@ -9,10 +9,11 @@ import {
 } from 'three';
 import { TilesRenderer } from '3d-tiles-renderer';
 import {
+  GeneratedSurfacePlugin,
   TileCompressionPlugin,
   TilesFadePlugin,
   UnloadTilesPlugin,
-  XYZTilesPlugin,
+  XYZTilesOverlay,
 } from '3d-tiles-renderer/plugins';
 import { GaussianSplatPlugin } from '3d-tiles-rendererjs-3dgs-plugin';
 import { CameraController } from './cameraController';
@@ -63,13 +64,17 @@ export function runExample({ tilesets, initial = 0 }) {
   );
   camera.position.set(0, 0, 1.75e7);
 
+  const imageryOverlay = new XYZTilesOverlay({
+    levels: SATELLITE_IMAGERY.levels,
+    url: SATELLITE_IMAGERY.url,
+  });
   const imageryTiles = new TilesRenderer();
   imageryTiles.registerPlugin(
-    new XYZTilesPlugin({
+    new GeneratedSurfacePlugin({
+      overlay: imageryOverlay,
       shape: 'ellipsoid',
       center: true,
-      levels: SATELLITE_IMAGERY.levels,
-      url: SATELLITE_IMAGERY.url,
+      applyOverlayTexture: true,
     }),
   );
   imageryTiles.registerPlugin(new TilesFadePlugin());

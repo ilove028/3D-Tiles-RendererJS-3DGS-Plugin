@@ -7,6 +7,10 @@ Versioning.
 
 ## [Unreleased]
 
+### Changed
+
+- Updated the Spark peer and development dependency range to `^2.1.0`.
+
 ## [0.1.7] - 2026-05-10
 
 ### Changed

@@ -15,25 +15,12 @@ import {
   type SupportedSparkRendererOptions,
 } from './GaussianSplatPlugin';
 
-const _identityMatrix = new Matrix4();
 const _cameraInverseWorldMatrix = new Matrix4();
 const _parentInverseWorldMatrix = new Matrix4();
 const _rebasedLocalMatrix = new Matrix4();
 
 const _displayFrameInverseWorldMatrix = new Matrix4();
 const _relativeRenderCameraMatrix = new Matrix4();
-
-function isXrPresenting(renderer: WebGLRenderer) {
-  return renderer.xr.isPresenting;
-}
-
-function getUpdateSourceCamera(
-  renderer: WebGLRenderer,
-  camera: Camera,
-  xrPresenting = isXrPresenting(renderer),
-) {
-  return xrPresenting ? renderer.xr.getCamera() : camera;
-}
 
 type RebasedCameraRelativeRoot = {
   target: Object3D | null;
@@ -77,6 +64,7 @@ export class CameraRelativeSparkRenderer extends SparkRenderer {
 
   #rebasedRootsPool: RebasedCameraRelativeRoot[] = [];
   #rebasedRootsCount = 0;
+  #prevRebasedRootsCount = 0;
   #hadRebasedLastFrame = false;
 
   constructor(
@@ -99,12 +87,8 @@ export class CameraRelativeSparkRenderer extends SparkRenderer {
     scene: Scene,
     camera: Camera,
   ) {
-    const xrPresenting = isXrPresenting(renderer);
-    const updateSourceCamera = getUpdateSourceCamera(
-      renderer,
-      camera,
-      xrPresenting,
-    );
+    const xrPresenting = renderer.xr.isPresenting;
+    const updateSourceCamera = xrPresenting ? renderer.xr.getCamera() : camera;
     if (!xrPresenting) {
       camera.updateMatrixWorld(true);
     }
@@ -145,6 +129,8 @@ export class CameraRelativeSparkRenderer extends SparkRenderer {
           );
         });
 
+        // updateInternal assigns this.current/this.display before its async
+        // sort/upload work, so the new accumulator can be fixed up immediately.
         // Spark receives an identity-rebased camera, so it writes identity
         // into accumulator.viewToWorld. Overwrite it back to the real world
         // frame that these camera-local splats actually correspond to.
@@ -196,9 +182,9 @@ export class CameraRelativeSparkRenderer extends SparkRenderer {
     updateCamera.quaternion.identity();
     updateCamera.scale.set(1, 1, 1);
     updateCamera.matrixAutoUpdate = false;
-    updateCamera.matrix.copy(_identityMatrix);
-    updateCamera.matrixWorld.copy(_identityMatrix);
-    updateCamera.matrixWorldInverse.copy(_identityMatrix);
+    updateCamera.matrix.identity();
+    updateCamera.matrixWorld.identity();
+    updateCamera.matrixWorldInverse.identity();
     updateCamera.matrixWorldNeedsUpdate = false;
     return updateCamera;
   }
@@ -238,14 +224,13 @@ export class CameraRelativeSparkRenderer extends SparkRenderer {
     this.#rebasedRootsCount = 0;
     _cameraInverseWorldMatrix.copy(camera.matrixWorld).invert();
 
-    this.#visitVisibleCameraRelativeRoots(scene, scene, false, false);
+    this.#visitVisibleCameraRelativeRoots(scene, false, false);
 
     return this.#rebasedRootsCount;
   }
 
   #visitVisibleCameraRelativeRoots(
     node: Object3D,
-    scene: Scene,
     hasGaussianSplatAncestor: boolean,
     hasCameraRelativeAncestor: boolean,
   ) {
@@ -272,7 +257,6 @@ export class CameraRelativeSparkRenderer extends SparkRenderer {
     for (let i = 0, l = children.length; i < l; i++) {
       this.#visitVisibleCameraRelativeRoots(
         children[i],
-        scene,
         nextHasGaussianSplatAncestor,
         nextHasCameraRelativeAncestor,
       );
@@ -298,6 +282,7 @@ export class CameraRelativeSparkRenderer extends SparkRenderer {
 
     const parent = node.parent;
     if (!parent) {
+      // Defensive path for direct calls or detached camera-relative roots.
       _rebasedLocalMatrix
         .copy(_cameraInverseWorldMatrix)
         .multiply(node.matrixWorld);
@@ -316,18 +301,18 @@ export class CameraRelativeSparkRenderer extends SparkRenderer {
 
   #restoreCameraRelativeRoots() {
     const pool = this.#rebasedRootsPool;
-    for (let i = this.#rebasedRootsCount - 1; i >= 0; i--) {
+    const currentCount = this.#rebasedRootsCount;
+    for (let i = currentCount - 1; i >= 0; i--) {
       const { target, originalMatrix, originalMatrixAutoUpdate } = pool[i];
       if (!target) continue;
       target.matrix.copy(originalMatrix);
       target.matrixAutoUpdate = originalMatrixAutoUpdate;
       target.matrixWorldNeedsUpdate = true;
+      target.updateMatrixWorld(true);
     }
-    for (let i = 0; i < this.#rebasedRootsCount; i++) {
-      pool[i].target?.updateMatrixWorld(true);
-    }
-    for (let i = this.#rebasedRootsCount; i < pool.length; i++) {
+    for (let i = currentCount; i < this.#prevRebasedRootsCount; i++) {
       pool[i].target = null;
     }
+    this.#prevRebasedRootsCount = currentCount;
   }
 }

@@ -7,6 +7,14 @@ Versioning.
 
 ## [Unreleased]
 
+### Changed
+
+- Reduced camera-relative Spark renderer hot-path overhead by removing unused
+  traversal state, limiting rebased-root pool cleanup to the previous frame's
+  active range, and restoring rebased root matrices in a single pass.
+- Clarified the Spark accumulator timing assumption used when fixing
+  camera-relative `viewToWorld` state after an update.
+
 ## [0.1.8] - 2026-05-21
 
 ### Changed

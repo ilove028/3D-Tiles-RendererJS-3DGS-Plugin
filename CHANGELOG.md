@@ -7,6 +7,8 @@ Versioning.
 
 ## [Unreleased]
 
+## [0.1.9] - 2026-05-22
+
 ### Changed
 
 - Added `premultipliedAlpha` to the supported `sparkRendererOptions` subset.

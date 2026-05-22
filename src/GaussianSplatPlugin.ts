@@ -37,6 +37,7 @@ type TilesRendererWithHooks = TilesRenderer & {
 };
 
 export const SPARK_RENDERER_OPTION_KEYS = [
+  'premultipliedAlpha',
   'encodeLinear',
   'maxStdDev',
   'minPixelRadius',

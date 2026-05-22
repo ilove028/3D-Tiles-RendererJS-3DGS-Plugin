@@ -9,6 +9,7 @@ Versioning.
 
 ### Changed
 
+- Added `premultipliedAlpha` to the supported `sparkRendererOptions` subset.
 - Reduced camera-relative Spark renderer hot-path overhead by removing unused
   traversal state, limiting rebased-root pool cleanup to the previous frame's
   active range, and restoring rebased root matrices in a single pass.

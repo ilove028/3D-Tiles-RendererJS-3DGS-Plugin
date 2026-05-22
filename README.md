@@ -201,6 +201,19 @@ merged into that existing shared renderer. Omitted keys do not reset previously
 applied values, and changed explicit values log a warning so shared-state
 updates remain visible.
 
+To update options on an existing shared Spark renderer at runtime, call
+`updateSharedSparkRendererOptions` with the scene and options:
+
+```ts
+import { updateSharedSparkRendererOptions } from '3d-tiles-rendererjs-3dgs-plugin';
+
+updateSharedSparkRendererOptions(scene, {
+  blurAmount: 0.2,
+});
+```
+
+Omitted keys keep their current values.
+
 ## Rendering Note
 
 When compositing Gaussian splats with an ellipsoid globe or imagery tiles, keep
@@ -347,13 +360,28 @@ Type guard for Spark `SplatMesh` nodes created by this plugin.
 
 Type guard for the `Group` wrapper that owns one parsed Gaussian tile scene.
 
+### `getSparkRendererForScene(scene)`
+
+Returns the shared Spark renderer currently attached to a scene, or `null` if
+the plugin has not initialized one for that scene or it has already been
+disposed. The returned renderer is owned by the plugin.
+
+### `updateSharedSparkRendererOptions(scene, options)`
+
+Applies explicit supported `sparkRendererOptions` to the existing shared Spark
+renderer for `scene`. This is intended for runtime UI controls or other
+configuration changes after the plugin has initialized. It does nothing if no
+shared renderer exists for the scene.
+
 ## Public Exports
 
 ```ts
 import {
   GaussianSplatPlugin,
+  getSparkRendererForScene,
   isGaussianSplat,
   isGaussianSplatScene,
+  updateSharedSparkRendererOptions,
 } from '3d-tiles-rendererjs-3dgs-plugin';
 ```
 

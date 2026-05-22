@@ -29,10 +29,10 @@ const MATERIAL_SPARK_RENDERER_OPTION_KEYS = new Set<string>([
 ]);
 
 function normalizeSparkRendererOptions(
-  host: GaussianSplatPluginHost,
+  options: SupportedSparkRendererOptions = {},
   includeCustomDefaults = true,
 ) {
-  const source = (host.sparkRendererOptions ?? {}) as Record<string, unknown>;
+  const source = options as Record<string, unknown>;
   const defaults = CUSTOM_DEFAULT_OPTIONS as Record<string, unknown>;
   const normalized: Record<string, unknown> = {};
   for (const key of SPARK_RENDERER_OPTION_KEYS) {
@@ -62,7 +62,9 @@ class SharedSparkRendererManager {
   constructor(host: GaussianSplatPluginHost) {
     this.#scene = host.scene;
     this.renderer = host.renderer;
-    this.#sparkRendererOptions = normalizeSparkRendererOptions(host);
+    this.#sparkRendererOptions = normalizeSparkRendererOptions(
+      host.sparkRendererOptions,
+    );
     this.#sparkRenderer = new CameraRelativeSparkRenderer(
       host.renderer,
       this.#sparkRendererOptions,
@@ -83,11 +85,14 @@ class SharedSparkRendererManager {
     this.#tilesRenderers.add(tiles);
   }
 
-  applyHostOptions(host: GaussianSplatPluginHost) {
-    const next = normalizeSparkRendererOptions(host, false) as Record<
-      string,
-      unknown
-    >;
+  applySparkRendererOptions(
+    sparkRendererOptions: SupportedSparkRendererOptions = {},
+    warnOnChange = true,
+  ) {
+    const next = normalizeSparkRendererOptions(
+      sparkRendererOptions,
+      false,
+    ) as Record<string, unknown>;
     const prev = this.#sparkRendererOptions as Record<string, unknown>;
     const renderer = this.#sparkRenderer as unknown as Record<string, unknown>;
     const material = this.#sparkRenderer.material as unknown as Record<
@@ -116,9 +121,11 @@ class SharedSparkRendererManager {
 
     this.#sparkRendererOptions = merged as NormalizedSparkRendererOptions;
     this.#sparkRenderer.setDirty();
-    console.warn(
-      `GaussianSplatPlugin: Updating shared sparkRendererOptions for Scene/WebGLRenderer. Existing: ${JSON.stringify(prev)}, received: ${JSON.stringify(next)}.`,
-    );
+    if (warnOnChange) {
+      console.warn(
+        `GaussianSplatPlugin: Updating shared sparkRendererOptions for Scene/WebGLRenderer. Existing: ${JSON.stringify(prev)}, received: ${JSON.stringify(next)}.`,
+      );
+    }
   }
 
   release(tiles: TilesRenderer) {
@@ -221,7 +228,7 @@ export function getSharedSparkRendererManager(host: GaussianSplatPluginHost) {
       );
     }
 
-    managerByScene.applyHostOptions(host);
+    managerByScene.applySparkRendererOptions(host.sparkRendererOptions);
     return managerByScene;
   }
 
@@ -241,6 +248,16 @@ export function getSharedSparkRendererManager(host: GaussianSplatPluginHost) {
 export function getSparkRendererForScene(scene: Scene): SparkRenderer | null {
   const manager = _sharedSparkManagersByScene.get(scene);
   return manager ? manager.sparkRenderer : null;
+}
+
+export function updateSharedSparkRendererOptions(
+  scene: Scene,
+  sparkRendererOptions: SupportedSparkRendererOptions,
+) {
+  const manager = _sharedSparkManagersByScene.get(scene);
+  if (manager) {
+    manager.applySparkRendererOptions(sparkRendererOptions, false);
+  }
 }
 
 export type { SharedSparkRendererManager };

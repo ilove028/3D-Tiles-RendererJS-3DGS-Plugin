@@ -7,6 +7,21 @@ Versioning.
 
 ## [Unreleased]
 
+## [0.1.10] - 2026-05-22
+
+### Added
+
+- Added `getSparkRendererForScene` and `updateSharedSparkRendererOptions`
+  public exports for inspecting the shared Spark renderer and updating supported
+  Spark renderer options at runtime.
+
+### Changed
+
+- Made runtime shared Spark renderer option updates apply without logging the
+  shared-options warning.
+- Avoided recursively cloning camera children when reusing camera-relative Spark
+  update and render cameras.
+
 ## [0.1.9] - 2026-05-22
 
 ### Changed

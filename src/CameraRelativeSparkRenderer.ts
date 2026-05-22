@@ -1,8 +1,4 @@
-import {
-  SparkRenderer,
-  SplatEdit,
-  SplatMesh,
-} from '@sparkjsdev/spark';
+import { SparkRenderer, SplatEdit, SplatMesh } from '@sparkjsdev/spark';
 import {
   Camera,
   Matrix4,
@@ -38,7 +34,8 @@ type SparkRendererUpdateInternals = {
 
 function ensureCameraClone(cached: Camera | null, source: Camera): Camera {
   if (!cached || cached.constructor !== source.constructor) {
-    return source.clone();
+    const CameraCtor = source.constructor as new () => Camera;
+    return new CameraCtor().copy(source, false);
   }
   cached.copy(source, false);
   return cached;
@@ -107,10 +104,7 @@ export class CameraRelativeSparkRenderer extends SparkRenderer {
         this.#lastXrHandledFrame = renderFrame;
       }
 
-      if (
-        (hasRebased || this.#hadRebasedLastFrame) &&
-        shouldHandleFrameState
-      ) {
+      if ((hasRebased || this.#hadRebasedLastFrame) && shouldHandleFrameState) {
         const updateCamera = this.#getUpdateCamera(updateSourceCamera);
         const prevDisplay = this.display;
         const prevCurrent = this.current;
@@ -156,13 +150,7 @@ export class CameraRelativeSparkRenderer extends SparkRenderer {
     }
   }
 
-  #updateSparkIfNeeded({
-    scene,
-    camera,
-  }: {
-    scene: Scene;
-    camera: Camera;
-  }) {
+  #updateSparkIfNeeded({ scene, camera }: { scene: Scene; camera: Camera }) {
     // Reuse Spark's auto-update skip logic while keeping our identity camera.
     return (this as unknown as SparkRendererUpdateInternals).updateInternal({
       scene,

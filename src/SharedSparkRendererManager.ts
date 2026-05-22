@@ -6,6 +6,7 @@ import {
   type SupportedSparkRendererOptions,
 } from './GaussianSplatPlugin';
 import { CameraRelativeSparkRenderer } from './CameraRelativeSparkRenderer';
+import type { SparkRenderer } from '@sparkjsdev/spark';
 
 const _sharedSparkManagersByScene = new WeakMap<
   Scene,
@@ -237,9 +238,7 @@ export function getSharedSparkRendererManager(host: GaussianSplatPluginHost) {
   return manager;
 }
 
-export function getSparkRendererForScene(
-  scene: Scene,
-): CameraRelativeSparkRenderer | null {
+export function getSparkRendererForScene(scene: Scene): SparkRenderer | null {
   const manager = _sharedSparkManagersByScene.get(scene);
   return manager ? manager.sparkRenderer : null;
 }

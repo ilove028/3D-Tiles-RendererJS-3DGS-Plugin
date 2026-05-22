@@ -41,7 +41,6 @@ export const SPARK_RENDERER_OPTION_KEYS = [
   'maxStdDev',
   'minPixelRadius',
   'maxPixelRadius',
-  'accumExtSplats',
   'minAlpha',
   'enable2DGS',
   'preBlurAmount',

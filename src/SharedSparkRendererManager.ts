@@ -22,6 +22,11 @@ const CUSTOM_DEFAULT_OPTIONS: NormalizedSparkRendererOptions = {
   focalAdjustment: 2,
 };
 
+const MATERIAL_SPARK_RENDERER_OPTION_KEYS = new Set<string>([
+  'depthTest',
+  'depthWrite',
+]);
+
 function normalizeSparkRendererOptions(
   host: GaussianSplatPluginHost,
   includeCustomDefaults = true,
@@ -69,6 +74,10 @@ class SharedSparkRendererManager {
     host.scene.add(this.#sparkRenderer);
   }
 
+  get sparkRenderer() {
+    return this.#sparkRenderer;
+  }
+
   retain(tiles: TilesRenderer) {
     this.#tilesRenderers.add(tiles);
   }
@@ -80,15 +89,24 @@ class SharedSparkRendererManager {
     >;
     const prev = this.#sparkRendererOptions as Record<string, unknown>;
     const renderer = this.#sparkRenderer as unknown as Record<string, unknown>;
+    const material = this.#sparkRenderer.material as unknown as Record<
+      string,
+      unknown
+    >;
 
     let merged: Record<string, unknown> | null = null;
 
     for (const [key, nextValue] of Object.entries(next)) {
+      const target = MATERIAL_SPARK_RENDERER_OPTION_KEYS.has(key)
+        ? material
+        : renderer;
+
       // With no tracked opinion yet, compare against the renderer's actual
       // current value so an explicit `next === current` is a no-op.
-      const baseline = prev[key] !== undefined ? prev[key] : renderer[key];
+      const baseline = prev[key] !== undefined ? prev[key] : target[key];
       if (baseline === nextValue) continue;
-      renderer[key] = nextValue;
+
+      target[key] = nextValue;
       merged ??= { ...prev };
       merged[key] = nextValue;
     }
@@ -124,13 +142,28 @@ class SharedSparkRendererManager {
     this.#sparkRenderer.autoUpdate = false;
     this.#tilesRenderers.clear();
     this.#sparkRenderer.onDirty = undefined;
+    this.#clearSparkRendererTimeouts();
+    this.#sparkRenderer.clearSplats();
+    this.#sparkRenderer.sortDirty = false;
 
-    // Defer sparkRenderer.dispose() until sort finishes
-    if (this.#sparkRenderer.sorting) {
-      this.#waitForSortAndDispose();
-    } else {
+    if (!this.#sparkRenderer.sorting) {
       this.#sparkRenderer.dispose();
+      return;
     }
+
+    this.#sparkRenderer.onDirty = () => {
+      this.#sparkRenderer.sortDirty = false;
+      if (this.#sparkRenderer.sorting) {
+        this.#sparkRenderer.dirty = false;
+        return;
+      }
+
+      this.#sparkRenderer.onDirty = undefined;
+      setTimeout(() => {
+        this.#sparkRenderer.dispose();
+      }, 0);
+    };
+    this.#sparkRenderer.dirty = false;
   }
 
   #stopScheduledNotifications() {
@@ -163,23 +196,16 @@ class SharedSparkRendererManager {
     }, 0);
   }
 
-  #waitForSortAndDispose() {
-    if (this.#disposeHandle !== null) {
-      return;
+  #clearSparkRendererTimeouts() {
+    if (this.#sparkRenderer.updateTimeoutId !== -1) {
+      clearTimeout(this.#sparkRenderer.updateTimeoutId);
+      this.#sparkRenderer.updateTimeoutId = -1;
     }
 
-    const checkSorting = () => {
-      this.#disposeHandle = null;
-
-      if (!this.#sparkRenderer.sorting) {
-        this.#sparkRenderer.dispose();
-        return;
-      }
-
-      this.#disposeHandle = setTimeout(checkSorting, 16);
-    };
-
-    this.#disposeHandle = setTimeout(checkSorting, 16);
+    if (this.#sparkRenderer.sortTimeoutId !== -1) {
+      clearTimeout(this.#sparkRenderer.sortTimeoutId);
+      this.#sparkRenderer.sortTimeoutId = -1;
+    }
   }
 }
 
@@ -209,6 +235,13 @@ export function getSharedSparkRendererManager(host: GaussianSplatPluginHost) {
   _sharedSparkManagersByRenderer.set(host.renderer, manager);
 
   return manager;
+}
+
+export function getSparkRendererForScene(
+  scene: Scene,
+): CameraRelativeSparkRenderer | null {
+  const manager = _sharedSparkManagersByScene.get(scene);
+  return manager ? manager.sparkRenderer : null;
 }
 
 export type { SharedSparkRendererManager };

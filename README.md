@@ -183,15 +183,14 @@ new GaussianSplatPlugin({
   sparkRendererOptions: {
     focalAdjustment: 2,
     blurAmount: 0.15,
-    accumExtSplats: false,
   },
 });
 ```
 
 Supported keys are `encodeLinear`, `maxStdDev`, `minPixelRadius`,
-`maxPixelRadius`, `accumExtSplats`, `minAlpha`, `enable2DGS`,
-`preBlurAmount`, `blurAmount`, `clipXY`, `focalAdjustment`, `sortRadial`,
-`minSortIntervalMs`, `depthTest`, and `depthWrite`.
+`maxPixelRadius`, `minAlpha`, `enable2DGS`, `preBlurAmount`, `blurAmount`,
+`clipXY`, `focalAdjustment`, `sortRadial`, `minSortIntervalMs`, `depthTest`,
+and `depthWrite`.
 
 Unspecified options use Spark defaults, except this plugin keeps
 `focalAdjustment: 2` as its own default.

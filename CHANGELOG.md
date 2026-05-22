@@ -14,6 +14,19 @@ Versioning.
   active range, and restoring rebased root matrices in a single pass.
 - Clarified the Spark accumulator timing assumption used when fixing
   camera-relative `viewToWorld` state after an update.
+- Removed `accumExtSplats` from the supported `sparkRendererOptions` subset
+  and documentation because Spark's default packed accumulator already encodes
+  intermediary splats relative to the camera origin.
+
+### Fixed
+
+- Applied shared `depthTest` and `depthWrite` option updates to the Spark
+  material instead of the renderer object.
+- Cleared pending Spark update/sort timers and splat state before shared Spark
+  renderer disposal, and deferred final disposal while an active sort is still
+  completing.
+- Updated the shared example viewer to listen for the current
+  `load-tileset` event name.
 
 ## [0.1.8] - 2026-05-21
 

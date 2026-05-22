@@ -152,7 +152,7 @@ export function runExample({ tilesets, initial = 0 }) {
     scene.add(next.group);
 
     let framed = false;
-    next.addEventListener('load-tile-set', () => {
+    next.addEventListener('load-tileset', () => {
       if (framed) return;
       if (frameTileset()) framed = true;
     });

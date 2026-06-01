@@ -7,6 +7,8 @@ Versioning.
 
 ## [Unreleased]
 
+## [0.1.11] - 2026-06-01
+
 ### Added
 
 - Added `minRaycastOpacity` on the `GaussianSplatPlugin` host so callers can

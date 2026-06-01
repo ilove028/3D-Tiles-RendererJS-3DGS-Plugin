@@ -75,6 +75,7 @@ tiles.registerPlugin(
   new GaussianSplatPlugin({
     renderer,
     scene,
+    minRaycastOpacity: 0.1,
     sparkRendererOptions: {
       // Optional: the plugin already defaults this to 2.
       focalAdjustment: 2,
@@ -345,7 +346,11 @@ Creates a tile parser plugin.
 
 - `renderer: WebGLRenderer`
 - `scene: Scene`
+- `minRaycastOpacity?: number`
 - `sparkRendererOptions?: supported Spark renderer option subset`
+
+`minRaycastOpacity` is forwarded to each Spark `SplatMesh` created by the
+plugin. It defaults to `0.1`.
 
 The same `scene` and `renderer` pair must stay in a strict 1:1:1 relationship
 with the shared Spark renderer manager used by the plugin. If multiple plugin

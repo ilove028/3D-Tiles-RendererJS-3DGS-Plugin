@@ -1,4 +1,8 @@
-import { SplatMesh, type SparkRendererOptions } from '@sparkjsdev/spark';
+import {
+  SplatMesh,
+  type SparkRendererOptions,
+  type SplatMeshOptions,
+} from '@sparkjsdev/spark';
 import { Group, Matrix4, Object3D, WebGLRenderer, type Scene } from 'three';
 import type { Tile, TilesRenderer } from '3d-tiles-renderer';
 import {
@@ -65,6 +69,7 @@ export type SupportedSparkRendererOptions = Pick<
 export type GaussianSplatPluginHost = {
   renderer: WebGLRenderer;
   scene: Scene;
+  minRaycastOpacity?: SplatMeshOptions['minRaycastOpacity'];
   sparkRendererOptions?: SupportedSparkRendererOptions;
 };
 
@@ -97,6 +102,7 @@ type GaussianSplatMesh = SplatMesh & {
 };
 
 const MAX_GAUSSIAN_MESH_INIT_CONCURRENCY = 4;
+const DEFAULT_MIN_RAYCAST_OPACITY = 0.1;
 
 const _sceneMatrix = new Matrix4();
 const _gaussianFadeValueWatched = Symbol('gaussianFadeValueWatched');
@@ -419,7 +425,8 @@ export class GaussianSplatPlugin {
     const mesh = new SplatMesh({
       extSplats: source.extSplats,
       raycastable: true,
-      minRaycastOpacity: 0.1,
+      minRaycastOpacity:
+        this.#host.minRaycastOpacity ?? DEFAULT_MIN_RAYCAST_OPACITY,
     }) as GaussianSplatMesh;
 
     const originalMaterial = mesh.material;

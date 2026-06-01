@@ -7,6 +7,11 @@ Versioning.
 
 ## [Unreleased]
 
+### Added
+
+- Added `minRaycastOpacity` on the `GaussianSplatPlugin` host so callers can
+  configure the Spark `SplatMesh` raycast opacity threshold.
+
 ## [0.1.10] - 2026-05-22
 
 ### Added

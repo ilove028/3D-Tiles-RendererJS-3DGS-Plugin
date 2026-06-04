@@ -7,6 +7,13 @@ Versioning.
 
 ## [Unreleased]
 
+## [0.1.12] - 2026-06-05
+
+### Fixed
+
+- Relaxed the Three.js peer dependency range to `>=0.180.0` so newer Three.js
+  `0.x` releases can install without npm peer dependency conflicts.
+
 ## [0.1.11] - 2026-06-01
 
 ### Added

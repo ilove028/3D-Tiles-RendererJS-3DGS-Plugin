@@ -7,6 +7,13 @@ Versioning.
 
 ## [Unreleased]
 
+## [0.1.13] - 2026-06-08
+
+### Fixed
+
+- Restored the active renderer viewport after camera-relative Spark updates so
+  WebXR eye viewports are not overwritten by Spark's render-target passes.
+
 ## [0.1.12] - 2026-06-05
 
 ### Fixed

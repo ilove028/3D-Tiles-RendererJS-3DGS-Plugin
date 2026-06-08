@@ -3,6 +3,7 @@ import {
   Camera,
   Matrix4,
   Object3D,
+  Vector4,
   type Scene,
   type WebGLRenderer,
 } from 'three';
@@ -17,6 +18,8 @@ const _rebasedLocalMatrix = new Matrix4();
 
 const _displayFrameInverseWorldMatrix = new Matrix4();
 const _relativeRenderCameraMatrix = new Matrix4();
+
+const _savedViewport = new Vector4();
 
 type RebasedCameraRelativeRoot = {
   target: Object3D | null;
@@ -113,6 +116,8 @@ export class CameraRelativeSparkRenderer extends SparkRenderer {
           updateSourceCamera.matrixWorld,
         );
 
+        const savedViewport = renderer.getCurrentViewport(_savedViewport);
+
         void this.#updateSparkIfNeeded({
           scene,
           camera: updateCamera,
@@ -122,6 +127,8 @@ export class CameraRelativeSparkRenderer extends SparkRenderer {
             error,
           );
         });
+
+        renderer.state.viewport(savedViewport);
 
         // updateInternal assigns this.current/this.display before its async
         // sort/upload work, so the new accumulator can be fixed up immediately.
